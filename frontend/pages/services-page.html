@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Services - LocalConnect</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="navbar"></div>
+
+<div class="page">
+    <div class="topbar">
+        <div>
+            <h1 id="servicesPageTitle">Services</h1>
+            <p class="subtext" id="servicesPageSubtitle">Choose a sub-category and book services.</p>
+        </div>
+    </div>
+
+    <div class="category-layout">
+        <aside class="subcategory-panel">
+            <h2 class="section-title left-align">Sub Services</h2>
+            <div id="subcategoryList" class="subcategory-list"></div>
+        </aside>
+
+        <section class="provider-panel">
+            <div class="service-toolbar">
+                <div>
+                    <h2 class="section-title left-align" style="margin-bottom: 4px;">Available Providers</h2>
+                    <p class="subtext" id="selectedSubCategoryText">Select a sub-category to view providers.</p>
+                    <div class="selected-count" id="selectedCount">Selected Services: 0</div>
+                </div>
+
+                <div class="actions toolbar-actions">
+                    <button type="button" class="toolbar-btn primary-toolbar-btn" onclick="bookSelectedServices()">
+                        Book Selected Services
+                    </button>
+                    <button type="button" class="toolbar-btn danger-toolbar-btn" onclick="clearSelectedServices()">
+                        Clear Selection
+                    </button>
+                </div>
+            </div>
+
+            <div id="services" class="service-list-view"></div>
+            <p id="bookingMsg" class="info-message"></p>
+        </section>
+    </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/services-page.js"></script>
+<script>
+    renderNavbar("navbar", "../");
+</script>
+</body>
+</html>

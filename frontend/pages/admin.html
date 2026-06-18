@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - LocalConnect</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="navbar"></div>
+
+<div class="page">
+    <div class="topbar">
+        <div>
+            <h1>Admin Panel</h1>
+            <p class="subtext">Approve services, monitor users, and manage the platform.</p>
+        </div>
+    </div>
+
+    <section class="section">
+        <h2 class="section-title left-align">Pending Services</h2>
+        <div id="pendingServices" class="grid"></div>
+    </section>
+
+    <section class="section">
+        <h2 class="section-title left-align">All Users</h2>
+        <div id="users" class="grid"></div>
+    </section>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/admin.js"></script>
+<script>
+    renderNavbar("navbar", "../");
+</script>
+</body>
+</html>

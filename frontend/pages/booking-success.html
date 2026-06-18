@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Successful - LocalConnect</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="navbar"></div>
+
+<div class="page">
+    <div class="success-page-card">
+        <div class="success-icon">✓</div>
+        <h1>Booking Confirmed</h1>
+        <p class="success-message">
+            Your booking has been placed successfully. The service provider will contact you soon.
+        </p>
+
+        <div class="success-details-box">
+            <h3>Booked Services</h3>
+            <ul id="bookedServicesList" class="success-services-list"></ul>
+        </div>
+
+        <p class="success-thankyou">
+            Thanks for using <strong>LocalConnect</strong>.
+        </p>
+
+        <div class="actions success-actions">
+            <a class="btn" href="services-page.html" id="backToSubcategoryBtn">Back to Subcategory</a>
+            <a class="btn secondary-btn" href="dashboard.html">View My Dashboard</a>
+        </div>
+    </div>
+</div>
+
+<script src="../js/main.js"></script>
+<script src="../js/booking-success.js"></script>
+<script>
+    renderNavbar("navbar", "../");
+</script>
+</body>
+</html>
