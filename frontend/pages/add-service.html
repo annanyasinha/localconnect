@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Service - LocalConnect</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="navbar"></div>
+
+<div class="auth-box wide-box">
+    <h2>Add New Service</h2>
+
+    <input id="title" placeholder="Service Title">
+
+    <select id="category" >
+        <option value="">Select Category</option>
+    </select>
+
+    <select id="subCategory">
+        <option value="">Select Sub-Category</option>
+    </select>
+
+    <textarea id="description" placeholder="Description"></textarea>
+    <input id="price" type="number" placeholder="Price">
+    <input id="city" placeholder="City">
+    <input id="area" placeholder="Area">
+    <input id="imageUrl" placeholder="Optional Image URL or leave blank for category image">
+
+    <select id="available">
+        <option value="true">Available</option>
+        <option value="false">Not Available</option>
+    </select>
+
+    <button type="button" onclick="addService()">Add Service</button>
+
+    <p style="margin-top:15px;"><a href="dashboard.html">&larr; Back to Dashboard</a></p>
+    <p id="msg" class="info-message"></p>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/add-service.js"></script>
+<script>
+    renderNavbar("navbar", "../");
+</script>
+</body>
+</html>

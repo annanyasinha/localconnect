@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - LocalConnect</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="navbar"></div>
+
+<div class="page">
+    <div class="dashboard-hero">
+        <div>
+            <span class="badge">Your Control Center</span>
+            <h1 id="welcomeText">Welcome</h1>
+            <p class="subtext">Manage profile, bookings and services from one place.</p>
+        </div>
+
+        <div class="dashboard-hero-actions">
+            <button id="addServiceBtn" class="btn" style="display:none;" onclick="goToAddService()">
+                Add Service
+            </button>
+            <button class="btn secondary-btn" onclick="goToServices()">
+                Explore Services
+            </button>
+        </div>
+    </div>
+
+    <section class="section">
+        <div class="dashboard-stats">
+            <div class="dashboard-stat-card">
+                <h3 id="statRole">USER</h3>
+                <p>Current Role</p>
+            </div>
+            <div class="dashboard-stat-card">
+                <h3 id="statBookings">0</h3>
+                <p>Total Bookings</p>
+            </div>
+            <div class="dashboard-stat-card">
+                <h3 id="statServices">0</h3>
+                <p>My Services</p>
+            </div>
+            <div class="dashboard-stat-card">
+                <h3 id="statStatus">Active</h3>
+                <p>Account Status</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2 class="section-title left-align">Profile Overview</h2>
+        <div id="profileCard" class="dashboard-profile-card"></div>
+    </section>
+
+    <section id="providerServicesSection" class="section" style="display:none;">
+        <div class="dashboard-section-head">
+            <h2 class="section-title left-align">My Services</h2>
+            <p class="subtext">Services added by you as a provider.</p>
+        </div>
+        <div id="myServices" class="dashboard-card-grid"></div>
+    </section>
+
+    <section class="section">
+        <div class="dashboard-section-head">
+            <h2 id="bookingTitle" class="section-title left-align">My Bookings</h2>
+            <p class="subtext">Track your recent booking activity.</p>
+        </div>
+        <div id="myBookings" class="dashboard-card-grid"></div>
+    </section>
+</div>
+
+<div class="footer">
+    © 2026 LocalConnect · MCA Project
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/dashboard.js"></script>
+<script>
+    renderNavbar("navbar", "../");
+</script>
+</body>
+</html>

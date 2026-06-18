@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Register</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div class="auth-box">
+    <h2>Register</h2>
+
+    <input id="name" placeholder="Full Name">
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <input id="phone" placeholder="Phone">
+
+    <select id="role">
+        <option value="USER">User</option>
+        <option value="PROVIDER">Provider</option>
+    </select>
+
+    <button type="button" onclick="register()">Register</button>
+
+    <p style="margin-top:15px;"><a href="../index.html">&larr; Back to Home</a></p>
+    <p id="msg"></p>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+</body>
+</html>
