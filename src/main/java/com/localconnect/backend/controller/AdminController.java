@@ -14,6 +14,7 @@ import java.util.List;
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
 @CrossOrigin("*")
+
 public class AdminController {
 
     private final ServiceListingService serviceListingService;
