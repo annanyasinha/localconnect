@@ -17,8 +17,8 @@ RUN ./mvnw dependency:go-offline
 # Copy source code
 COPY src src
 
-# Build the application
-RUN ./mvnw clean package -DskipTests
+# Build the applicatio
+RUN ./mvnw clean package -DskipTests && ls -la target
 
 # ==========================
 # Stage 2 - Runtime image
