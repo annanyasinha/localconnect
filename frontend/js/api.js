@@ -3,12 +3,18 @@
      //   ? "http://localhost:8088/api"
       //  : "http://localhost:8088/api";
 
-const API_URL = "https://localconnect-v4rp.onrender.com/api";
+
+// This will automatically choose the correct URL depending on where the app is running
+const API_BASE =
+    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://localhost:8088/api" 
+        : "https://localconnect-v4rp.onrender.com/api";
 
 function getToken() {
     return localStorage.getItem("token");
 }
 
+    // ... rest of your apiFetch function remains exactly the same
 async function apiFetch(url, options = {}) {
     const headers = {
         ...(options.headers || {})
