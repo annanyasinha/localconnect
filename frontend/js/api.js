@@ -1,7 +1,9 @@
-const API_BASE =
-    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? "http://localhost:8088/api"
-        : "http://localhost:8088/api";
+//const API_BASE =
+    //window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+     //   ? "http://localhost:8088/api"
+      //  : "http://localhost:8088/api";
+
+const API_URL = "https://localconnect-v4rp.onrender.com/api";
 
 function getToken() {
     return localStorage.getItem("token");
