@@ -4,9 +4,12 @@
       //  : "http://localhost:8088/api";
 
 
-// This will automatically choose the correct URL depending on where the app is running
+// Automatically choose localhost:8088 when running locally or via file:// protocol
 const API_BASE =
-    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.protocol === "file:" ||
+    !window.location.hostname
         ? "http://localhost:8088/api" 
         : "https://localconnect-v4rp.onrender.com/api";
 

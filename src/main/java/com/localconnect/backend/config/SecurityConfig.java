@@ -27,6 +27,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/services/**").permitAll()
                         .requestMatchers("/api/admin/**").permitAll()
                         .requestMatchers("/api/bookings/**").permitAll()
+                        .requestMatchers("/api/chat/**").permitAll()
                         .anyRequest().permitAll()
                 )
                 .sessionManagement(session ->
