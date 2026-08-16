@@ -22,7 +22,7 @@
         <java.version>17</java.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <jjwt.version>0.11.5</jjwt.version>
-        <spring-ai.version>1.0.0-M1</spring-ai.version>
+        <spring-ai.version>1.0.3</spring-ai.version>
     </properties>
 
     <dependencyManagement>
