@@ -8,6 +8,7 @@ import com.localconnect.backend.dto.response.ServiceListingResponse;
 import com.localconnect.backend.entity.ChatMessage;
 import com.localconnect.backend.enums.BookingStatus;
 import com.localconnect.backend.repository.ChatMessageRepository;
+import com.localconnect.backend.repository.UserRepository;
 import com.localconnect.backend.service.impl.ChatServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -31,6 +33,9 @@ class ChatServiceTest {
 
     @Mock
     private BookingService bookingService;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private ChatServiceImpl chatService;

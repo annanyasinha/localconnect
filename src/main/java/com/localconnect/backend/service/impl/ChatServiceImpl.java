@@ -132,15 +132,11 @@ public class ChatServiceImpl implements ChatService {
                     """, SYSTEM_PROMPT, userName, userEmail, historyContext, userMessage);
 
                 OpenAiChatOptions options = OpenAiChatOptions.builder()
-                        .withFunction("bookServiceFunction")
-                        .withFunction("cancelBookingFunction")
-                        .withFunction("rescheduleBookingFunction")
-                        .withFunction("checkBookingStatusFunction")
-                        .withFunction("recommendServicesFunction")
+                        .toolNames(java.util.Set.of("bookServiceFunction", "cancelBookingFunction", "rescheduleBookingFunction", "checkBookingStatusFunction", "recommendServicesFunction"))
                         .build();
 
                 Prompt prompt = new Prompt(promptText, options);
-                reply = chatModel.call(prompt).getResult().getOutput().getContent();
+                reply = chatModel.call(prompt).getResult().getOutput().getText();
                 log.info("LLM Agent generated reply: {}", reply);
             } catch (Exception ex) {
                 log.warn("Spring AI LLM call failed, executing rule fallback agent: {}", ex.getMessage());
@@ -148,6 +144,16 @@ public class ChatServiceImpl implements ChatService {
             }
         } else {
             reply = executeRuleFallback(userMessage, userEmail, history, userName, conversationId);
+        }
+
+        if (reply != null) {
+            if (reply.contains("cancelled successfully")) {
+                action = "BOOKING_CANCELLED";
+            } else if (reply.contains("Booking Summary") || reply.contains("has been booked") || reply.contains("Scheduled") || reply.contains("Booking Confirmed")) {
+                action = "BOOKING_CREATED";
+            } else if (reply.contains("Top Services") || reply.contains("Found")) {
+                action = "RECOMMENDATIONS";
+            }
         }
 
         // 5. Persist Assistant Response to Chat Memory
