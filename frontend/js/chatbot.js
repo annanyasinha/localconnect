@@ -92,9 +92,11 @@
             let userEmail = localStorage.getItem('userEmail') || localStorage.getItem('email') || 'guest@localconnect.com';
 
             try {
-                const apiEndpoint = window.location.pathname.includes('/pages/') 
-                    ? 'http://localhost:8088/api/chat' 
-                    : 'http://localhost:8088/api/chat';
+                const apiEndpoint = typeof API_BASE !== 'undefined' 
+                    ? API_BASE + '/chat'
+                    : (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:" || !window.location.hostname
+                        ? 'http://localhost:8088/api/chat'
+                        : 'https://localconnect-v4rp.onrender.com/api/chat');
 
                 const response = await fetch(apiEndpoint, {
                     method: 'POST',
