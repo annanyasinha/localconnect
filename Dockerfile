@@ -28,11 +28,12 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 # Copy the generated JAR
-COPY --from=builder /app/target/*.jar app.jar
+COPY --from=builder /app/target/backend-*.jar app.jar
 
 # Render provides the PORT environment variable.
 ENV PORT=8080
 
 EXPOSE 8080
 
-ENTRYPOINT ["sh", "-c", "java -Dserver.port=$PORT -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java -Xms256m -Xmx350m -XX:+UseContainerSupport -Dserver.port=$PORT -jar app.jar"]
+
