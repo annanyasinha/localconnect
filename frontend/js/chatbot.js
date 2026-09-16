@@ -85,11 +85,18 @@
             appendMessage('user', text);
             inputField.value = '';
 
+            // Check if user is logged in
+            const token = localStorage.getItem('token');
+            if (!token) {
+                appendMessage('assistant', '🔒 Please log in to chat with the AI Assistant and manage your bookings.');
+                return;
+            }
+
             // Show Typing Indicator
             const typingElem = showTyping();
 
             // Get logged in user email if available
-            let userEmail = localStorage.getItem('userEmail') || localStorage.getItem('email') || 'guest@localconnect.com';
+            let userEmail = localStorage.getItem('userEmail') || localStorage.getItem('email') || '';
 
             try {
                 const apiEndpoint = typeof API_BASE !== 'undefined' 
@@ -102,7 +109,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
+                        'Authorization': 'Bearer ' + token
                     },
                     body: JSON.stringify({
                         message: text,
@@ -116,12 +123,14 @@
                 if (response.ok) {
                     const data = await response.json();
                     appendMessage('assistant', data.reply);
+                } else if (response.status === 401) {
+                    appendMessage('assistant', '🔒 Session expired or unauthorized. Please log in to continue using the AI Assistant.');
                 } else {
                     appendMessage('assistant', '⚠️ Unable to connect to AI server. Please verify backend is running on port 8088.');
                 }
             } catch (err) {
                 removeTyping(typingElem);
-                appendMessage('assistant', '👋 Hello! AI backend is connecting... You can ask me to book service #1 or view active bookings!');
+                appendMessage('assistant', '👋 Hello! AI backend is connecting... Please log in and ask me to book services or view active bookings!');
             }
         }
 
