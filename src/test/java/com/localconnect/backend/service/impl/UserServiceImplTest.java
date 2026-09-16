@@ -120,6 +120,7 @@ class UserServiceImplTest {
 
         when(user.getEmail()).thenReturn("test@gmail.com");
         when(user.getPassword()).thenReturn("encodedPassword");
+        when(user.getEnabled()).thenReturn(true);
 
         when(userRepository.findByEmail("test@gmail.com"))
                 .thenReturn(Optional.of(user));
@@ -148,6 +149,26 @@ class UserServiceImplTest {
                 .matches("password123", "encodedPassword");
         verify(jwtService).generateToken("test@gmail.com");
         verify(userMapper).toResponse(user);
+    }
+
+    @Test
+    void login_shouldThrowExceptionWhenAccountIsDisabled() {
+        LoginRequest request = mock(LoginRequest.class);
+        when(request.getEmail()).thenReturn("disabled@gmail.com");
+
+        User user = mock(User.class);
+        when(user.getEnabled()).thenReturn(false);
+
+        when(userRepository.findByEmail("disabled@gmail.com"))
+                .thenReturn(Optional.of(user));
+
+        org.springframework.web.server.ResponseStatusException exception = assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> userService.login(request)
+        );
+
+        assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Account disabled"));
     }
     @Test
     void login_shouldThrowExceptionWhenUserDoesNotExist() {

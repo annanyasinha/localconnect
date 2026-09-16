@@ -12,8 +12,10 @@ import com.localconnect.backend.repository.UserRepository;
 import com.localconnect.backend.security.JwtService;
 import com.localconnect.backend.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 
@@ -38,7 +40,7 @@ public class UserServiceImpl implements UserService {
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
-                .role(request.getRole() == null ? RoleName.USER : request.getRole())
+                .role(request.getRole() == RoleName.PROVIDER ? RoleName.PROVIDER : RoleName.USER)
                 .enabled(true)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -60,6 +62,13 @@ public class UserServiceImpl implements UserService {
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Account disabled"
+            );
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Invalid credentials");
