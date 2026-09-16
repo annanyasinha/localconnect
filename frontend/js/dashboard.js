@@ -147,7 +147,7 @@ async function loadMyServices() {
     container.innerHTML = "<p>Loading your services...</p>";
 
     try {
-        const data = await apiFetch(`/services/my?providerEmail=${encodeURIComponent(user.email)}`);
+        const data = await apiFetch("/services/my");
         container.innerHTML = "";
 
         if (!Array.isArray(data) || !data.length) {
@@ -203,9 +203,7 @@ async function loadBookings() {
     container.innerHTML = "<p>Loading bookings...</p>";
 
     try {
-        const url = user.role === "PROVIDER"
-            ? `/bookings/provider?providerEmail=${encodeURIComponent(user.email)}`
-            : `/bookings/my?userEmail=${encodeURIComponent(user.email)}`;
+        const url = user.role === "PROVIDER" ? "/bookings/provider" : "/bookings/my";
 
         const data = await apiFetch(url);
         container.innerHTML = "";

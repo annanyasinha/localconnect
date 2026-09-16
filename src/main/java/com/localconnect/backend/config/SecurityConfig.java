@@ -80,6 +80,11 @@ public class SecurityConfig {
                     "/api/services/my"
                 ).hasRole("PROVIDER")
 
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/bookings/provider"
+                ).hasRole("PROVIDER")
+
                 // Authenticated booking and chat
                 .requestMatchers("/api/bookings/**")
                     .authenticated()

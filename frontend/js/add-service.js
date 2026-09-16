@@ -230,7 +230,7 @@ async function addService() {
     };
 
     try {
-        await apiFetch(`/services?providerEmail=${encodeURIComponent(user.email)}`, {
+        await apiFetch("/services", {
             method: "POST",
             body: JSON.stringify(data)
         });

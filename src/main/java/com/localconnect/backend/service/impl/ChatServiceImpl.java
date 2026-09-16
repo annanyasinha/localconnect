@@ -82,16 +82,7 @@ public class ChatServiceImpl implements ChatService {
             if (nameMatcher.find()) {
                 String extractedName = capitalizeWords(nameMatcher.group(1).trim());
                 User user = userRepository.findByEmail(userEmail).orElse(null);
-                if (user == null) {
-                    userRepository.save(User.builder()
-                            .email(userEmail)
-                            .fullName(extractedName)
-                            .password("guest123")
-                            .role(RoleName.USER)
-                            .enabled(true)
-                            .createdAt(LocalDateTime.now())
-                            .build());
-                } else {
+                if (user != null) {
                     user.setFullName(extractedName);
                     userRepository.save(user);
                 }

@@ -6,6 +6,7 @@ import com.localconnect.backend.entity.Booking;
 import com.localconnect.backend.entity.ServiceListing;
 import com.localconnect.backend.entity.User;
 import com.localconnect.backend.enums.ApprovalStatus;
+import com.localconnect.backend.enums.BookingStatus;
 import com.localconnect.backend.mapper.BookingMapper;
 import com.localconnect.backend.repository.BookingRepository;
 import com.localconnect.backend.repository.ServiceListingRepository;
@@ -15,13 +16,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-
 
 @ExtendWith(MockitoExtension.class)
 class BookingServiceImplTest {
@@ -45,13 +50,13 @@ class BookingServiceImplTest {
     void createBooking_shouldCreateBookingSuccessfully() {
 
         BookingCreateRequest request = mock(BookingCreateRequest.class);
+        LocalDateTime futureDate = LocalDateTime.now(ZoneId.of("Asia/Kolkata")).plusDays(1);
 
         when(request.getServiceId()).thenReturn(1L);
         when(request.getMessage()).thenReturn("Please come in the morning");
-        when(request.getBookingDate()).thenReturn(null);
+        when(request.getBookingDate()).thenReturn(futureDate);
 
         User user = mock(User.class);
-
         ServiceListing serviceListing = mock(ServiceListing.class);
 
         when(userRepository.findByEmail("test@gmail.com"))
@@ -62,6 +67,13 @@ class BookingServiceImplTest {
 
         when(serviceListing.getApprovalStatus())
                 .thenReturn(ApprovalStatus.APPROVED);
+
+        when(serviceListing.getAvailable())
+                .thenReturn(true);
+
+        when(bookingRepository.existsByServiceListingAndBookingDateAndStatusNot(
+                eq(serviceListing), eq(futureDate), eq(BookingStatus.CANCELLED)))
+                .thenReturn(false);
 
         Booking savedBooking = mock(Booking.class);
 
@@ -100,15 +112,16 @@ class BookingServiceImplTest {
         when(userRepository.findByEmail("unknown@gmail.com"))
                 .thenReturn(Optional.empty());
 
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
                 () -> bookingService.createBooking(
                         request,
                         "unknown@gmail.com"
                 )
         );
 
-        assertEquals("User not found", exception.getMessage());
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Please log in"));
 
         verify(userRepository)
                 .findByEmail("unknown@gmail.com");
@@ -140,15 +153,16 @@ class BookingServiceImplTest {
         when(serviceListing.getApprovalStatus())
                 .thenReturn(ApprovalStatus.PENDING);
 
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
                 () -> bookingService.createBooking(
                         request,
                         "test@gmail.com"
                 )
         );
 
-        assertEquals("Service is not approved", exception.getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Service is not approved"));
 
         verify(userRepository)
                 .findByEmail("test@gmail.com");
@@ -162,6 +176,7 @@ class BookingServiceImplTest {
         verify(bookingMapper, never())
                 .toResponse(any());
     }
+
     @Test
     void getMyBookings_shouldReturnUserBookings() {
 

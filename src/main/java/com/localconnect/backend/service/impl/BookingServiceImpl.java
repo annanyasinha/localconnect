@@ -8,7 +8,6 @@ import com.localconnect.backend.entity.ServiceListing;
 import com.localconnect.backend.entity.User;
 import com.localconnect.backend.enums.ApprovalStatus;
 import com.localconnect.backend.enums.BookingStatus;
-import com.localconnect.backend.enums.RoleName;
 import com.localconnect.backend.mapper.BookingMapper;
 import com.localconnect.backend.mapper.ServiceListingMapper;
 import com.localconnect.backend.repository.BookingRepository;
@@ -16,9 +15,13 @@ import com.localconnect.backend.repository.ServiceListingRepository;
 import com.localconnect.backend.repository.UserRepository;
 import com.localconnect.backend.service.BookingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,37 +37,78 @@ public class BookingServiceImpl implements BookingService {
     private final ServiceListingMapper serviceListingMapper;
 
     private User getUserOrThrow(String userEmail) {
-        String email = (userEmail != null && !userEmail.isBlank()) ? userEmail : "guest@localconnect.com";
-        return userRepository.findByEmail(email)
-                .orElseGet(() -> {
-                    if (email.contains("guest")) {
-                        return userRepository.save(User.builder()
-                                .email(email)
-                                .fullName("Guest User")
-                                .password("guest123")
-                                .role(RoleName.USER)
-                                .enabled(true)
-                                .createdAt(LocalDateTime.now())
-                                .build());
-                    }
-                    throw new RuntimeException("User not found");
-                });
+        return userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Please log in"
+                ));
+    }
+
+    private void verifyOwnership(Booking booking, String userEmail) {
+        boolean isCustomer = booking.getUser() != null &&
+                             booking.getUser().getEmail().equalsIgnoreCase(userEmail);
+        boolean isProvider = booking.getServiceListing() != null &&
+                             booking.getServiceListing().getProvider() != null &&
+                             booking.getServiceListing().getProvider().getEmail().equalsIgnoreCase(userEmail);
+
+        if (!isCustomer && !isProvider) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Access denied"
+            );
+        }
     }
 
     @Override
+    @Transactional
     public BookingResponse createBooking(BookingCreateRequest request, String userEmail) {
         User user = getUserOrThrow(userEmail);
 
         ServiceListing serviceListing = serviceListingRepository.findById(request.getServiceId())
-                .orElseThrow(() -> new RuntimeException("Service not found"));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Service not found"
+                ));
 
         if (serviceListing.getApprovalStatus() != ApprovalStatus.APPROVED) {
-            throw new RuntimeException("Service is not approved");
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Service is not approved"
+            );
         }
 
-        LocalDateTime bookingDate = request.getBookingDate() != null
-                ? request.getBookingDate()
-                : LocalDateTime.now().plusDays(1);
+        if (!Boolean.TRUE.equals(serviceListing.getAvailable())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Service is currently unavailable"
+            );
+        }
+
+        LocalDateTime bookingDate = request.getBookingDate();
+        if (bookingDate == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Booking date is required"
+            );
+        }
+
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
+        if (!bookingDate.isAfter(now)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Booking date must be in the future"
+            );
+        }
+
+        boolean doubleBooked = bookingRepository.existsByServiceListingAndBookingDateAndStatusNot(
+                serviceListing, bookingDate, BookingStatus.CANCELLED
+        );
+        if (doubleBooked) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This time slot is already booked for this service"
+            );
+        }
 
         Booking booking = Booking.builder()
                 .user(user)
@@ -72,7 +116,7 @@ public class BookingServiceImpl implements BookingService {
                 .message(request.getMessage())
                 .bookingDate(bookingDate)
                 .status(BookingStatus.PENDING)
-                .createdAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                 .build();
 
         return bookingMapper.toResponse(bookingRepository.save(booking));
@@ -91,7 +135,10 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public List<BookingResponse> getProviderBookings(String providerEmail) {
         User provider = userRepository.findByEmail(providerEmail)
-                .orElseThrow(() -> new RuntimeException("Provider not found"));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Provider not found"
+                ));
 
         List<ServiceListing> myServices = serviceListingRepository.findByProvider(provider);
         List<Booking> allBookings = new ArrayList<>();
@@ -106,18 +153,46 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
+    @Transactional
     public BookingResponse cancelBooking(Long bookingId, String userEmail) {
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Booking not found with ID: " + bookingId));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Booking not found"
+                ));
+
+        verifyOwnership(booking, userEmail);
+
+        if (booking.getStatus() == BookingStatus.CANCELLED ||
+            booking.getStatus() == BookingStatus.COMPLETED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This booking cannot be cancelled"
+            );
+        }
 
         booking.setStatus(BookingStatus.CANCELLED);
         return bookingMapper.toResponse(bookingRepository.save(booking));
     }
 
     @Override
+    @Transactional
     public BookingResponse rescheduleBooking(Long bookingId, String newBookingDateStr, String userEmail) {
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Booking not found with ID: " + bookingId));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Booking not found"
+                ));
+
+        verifyOwnership(booking, userEmail);
+
+        if (booking.getStatus() == BookingStatus.CANCELLED ||
+            booking.getStatus() == BookingStatus.COMPLETED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This booking cannot be rescheduled"
+            );
+        }
 
         LocalDateTime newDate;
         try {
@@ -126,8 +201,29 @@ public class BookingServiceImpl implements BookingService {
             try {
                 newDate = LocalDateTime.parse(newBookingDateStr);
             } catch (Exception ex) {
-                newDate = LocalDateTime.now().plusDays(1);
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Invalid booking date format"
+                );
             }
+        }
+
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
+        if (!newDate.isAfter(now)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Booking date must be in the future"
+            );
+        }
+
+        boolean doubleBooked = bookingRepository.existsByServiceListingAndBookingDateAndStatusNot(
+                booking.getServiceListing(), newDate, BookingStatus.CANCELLED
+        );
+        if (doubleBooked) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This time slot is already booked for this service"
+            );
         }
 
         booking.setBookingDate(newDate);
@@ -138,8 +234,12 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public BookingResponse getBookingStatus(Long bookingId, String userEmail) {
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Booking not found with ID: " + bookingId));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Booking not found"
+                ));
 
+        verifyOwnership(booking, userEmail);
         return bookingMapper.toResponse(booking);
     }
 

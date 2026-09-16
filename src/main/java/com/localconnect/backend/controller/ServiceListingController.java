@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -17,9 +18,10 @@ public class ServiceListingController {
     private final ServiceListingService serviceListingService;
 
     @PostMapping
-    public ServiceListingResponse createService(@Valid @RequestBody ServiceCreateRequest request,
-                                                @RequestParam String providerEmail) {
-        return serviceListingService.createService(request, providerEmail);
+    public ServiceListingResponse createService(
+            @Valid @RequestBody ServiceCreateRequest request,
+            Principal principal) {
+        return serviceListingService.createService(request, principal.getName());
     }
 
     @GetMapping
@@ -39,7 +41,7 @@ public class ServiceListingController {
     }
 
     @GetMapping("/my")
-    public List<ServiceListingResponse> getMyServices(@RequestParam String providerEmail) {
-        return serviceListingService.getMyServices(providerEmail);
+    public List<ServiceListingResponse> getMyServices(Principal principal) {
+        return serviceListingService.getMyServices(principal.getName());
     }
 }

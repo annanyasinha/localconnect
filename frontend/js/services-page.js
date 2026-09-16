@@ -334,6 +334,16 @@ async function loadServices() {
     }
 }
 
+function getSelectedBookingDate() {
+    const input = document.getElementById("bookingDate");
+    const selectedDate = input ? input.value : "";
+    if (!selectedDate || new Date(selectedDate) <= new Date()) {
+        setBookingMessage("Please select a future date and time.", true);
+        return null;
+    }
+    return selectedDate.length === 16 ? selectedDate + ":00" : selectedDate;
+}
+
 async function singleBook(serviceId, serviceTitle) {
     const user = getCurrentUser();
 
@@ -343,13 +353,16 @@ async function singleBook(serviceId, serviceTitle) {
         return;
     }
 
+    const bookingDate = getSelectedBookingDate();
+    if (!bookingDate) return;
+
     try {
-        await apiFetch(`/bookings?userEmail=${encodeURIComponent(user.email)}`, {
+        await apiFetch("/bookings", {
             method: "POST",
             body: JSON.stringify({
                 serviceId: serviceId,
                 message: `Booking request for ${serviceTitle}`,
-                bookingDate: getLocalDateTimeForJava()
+                bookingDate: bookingDate
             })
         });
 
@@ -375,17 +388,20 @@ async function bookSelectedServices() {
         return;
     }
 
+    const bookingDate = getSelectedBookingDate();
+    if (!bookingDate) return;
+
     const bookedNames = [];
     const failedNames = [];
 
     for (const [serviceId, serviceTitle] of selectedServices.entries()) {
         try {
-            await apiFetch(`/bookings?userEmail=${encodeURIComponent(user.email)}`, {
+            await apiFetch("/bookings", {
                 method: "POST",
                 body: JSON.stringify({
                     serviceId: serviceId,
                     message: `Booking request for ${serviceTitle}`,
-                    bookingDate: getLocalDateTimeForJava()
+                    bookingDate: bookingDate
                 })
             });
 
@@ -406,6 +422,15 @@ async function bookSelectedServices() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    const bookingDateInput = document.getElementById("bookingDate");
+    if (bookingDateInput && !bookingDateInput.value) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(10, 0, 0, 0);
+        const pad = (n) => String(n).padStart(2, "0");
+        bookingDateInput.value = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T10:00`;
+    }
+
     const categoryParam = getQueryParam("category");
     const subCategoryParam = getQueryParam("subCategory");
 

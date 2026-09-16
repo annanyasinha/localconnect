@@ -32,6 +32,13 @@
                     <div class="selected-count" id="selectedCount">Selected Services: 0</div>
                 </div>
 
+                <div class="booking-date-selector" style="margin-top: 12px;">
+                    <label for="bookingDate" style="display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem;">
+                        Preferred booking date and time
+                    </label>
+                    <input type="datetime-local" id="bookingDate" required style="padding: 8px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; background: rgba(15,23,42,0.6); color: #fff; font-size: 0.9rem;" />
+                </div>
+
                 <div class="actions toolbar-actions">
                     <button type="button" class="toolbar-btn primary-toolbar-btn" onclick="bookSelectedServices()">
                         Book Selected Services
