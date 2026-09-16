@@ -17,6 +17,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.web.server.ResponseStatusException;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -117,4 +119,27 @@ class ChatServiceTest {
         assertNotNull(response);
         assertTrue(response.getReply().contains("Expert Plumbing") || response.getReply().contains("Top Services") || response.getReply().contains("LocalConnect AI"));
     }
+
+    @Test
+    void testProcessChatMessage_ConversationIsolation() {
+        ChatMessage existingMsg = ChatMessage.builder()
+                .conversationId("conv-shared")
+                .userEmail("victim@example.com")
+                .sender("USER")
+                .content("Hello")
+                .createdAt(LocalDateTime.now().minusMinutes(5))
+                .build();
+
+        when(chatMessageRepository.findByConversationIdOrderByCreatedAtAsc("conv-shared"))
+                .thenReturn(List.of(existingMsg));
+
+        ChatRequest request = ChatRequest.builder()
+                .message("Hi, I want to access victim's chat")
+                .conversationId("conv-shared")
+                .userEmail("attacker@example.com")
+                .build();
+
+        assertThrows(ResponseStatusException.class, () -> chatService.processChatMessage(request));
+    }
 }
+
