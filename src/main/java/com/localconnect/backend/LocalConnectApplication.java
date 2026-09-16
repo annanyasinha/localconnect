@@ -1,14 +1,17 @@
+
 package com.localconnect.backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cache.annotation.EnableCaching;
 
 @SpringBootApplication
+@EnableCaching
 public class LocalConnectApplication {
 
-    public static void main(String[] args)
-    {
-        SpringApplication.run(LocalConnectApplication.class, args);
+    public static void main(String[] args) {
+        SpringApplication.run(
+                LocalConnectApplication.class,
+                args);
     }
-
 }

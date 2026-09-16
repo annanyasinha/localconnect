@@ -79,8 +79,7 @@ public class ChatServiceImpl implements ChatService {
         String lowerMsg = userMessage.toLowerCase();
 
         // 1. Conversation Isolation Check
-        List<ChatMessage> history =
-                chatMessageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+        List<ChatMessage> history = chatMessageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
 
         boolean belongsToSomeoneElse = history.stream()
                 .anyMatch(msg -> !userEmail.equalsIgnoreCase(msg.getUserEmail()));
@@ -88,8 +87,7 @@ public class ChatServiceImpl implements ChatService {
         if (belongsToSomeoneElse) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Conversation access denied"
-            );
+                    "Conversation access denied");
         }
 
         // 2. Persist User Message to Chat Memory
@@ -115,18 +113,19 @@ public class ChatServiceImpl implements ChatService {
             try {
                 String historyContext = buildHistoryContext(history);
                 String promptText = String.format("""
-                    %s
-                    
-                    User Profile: Name=%s, Email=%s
-                    
-                    Recent Chat Memory:
-                    %s
-                    
-                    User Request: %s
-                    """, SYSTEM_PROMPT, userName, userEmail, historyContext, userMessage);
+                        %s
+
+                        User Profile: Name=%s, Email=%s
+
+                        Recent Chat Memory:
+                        %s
+
+                        User Request: %s
+                        """, SYSTEM_PROMPT, userName, userEmail, historyContext, userMessage);
 
                 OpenAiChatOptions options = OpenAiChatOptions.builder()
-                        .toolNames(java.util.Set.of("bookServiceFunction", "cancelBookingFunction", "rescheduleBookingFunction", "checkBookingStatusFunction", "recommendServicesFunction"))
+                        .toolNames(java.util.Set.of("bookServiceFunction", "cancelBookingFunction",
+                                "rescheduleBookingFunction", "checkBookingStatusFunction", "recommendServicesFunction"))
                         .build();
 
                 Prompt prompt = new Prompt(promptText, options);
@@ -143,7 +142,9 @@ public class ChatServiceImpl implements ChatService {
         if (reply != null) {
             if (reply.contains("cancelled successfully")) {
                 action = "BOOKING_CANCELLED";
-            } else if (reply.contains("Booking Summary") || reply.contains("has been booked") || reply.contains("Scheduled") || reply.contains("Booking Confirmed") || reply.contains("Booking Request Submitted")) {
+            } else if (reply.contains("Booking Summary") || reply.contains("has been booked")
+                    || reply.contains("Scheduled") || reply.contains("Booking Confirmed")
+                    || reply.contains("Booking Request Submitted")) {
                 action = "BOOKING_CREATED";
             } else if (reply.contains("Top Services") || reply.contains("Found")) {
                 action = "RECOMMENDATIONS";

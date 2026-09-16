@@ -10,7 +10,11 @@ import com.localconnect.backend.mapper.ServiceListingMapper;
 import com.localconnect.backend.repository.ServiceListingRepository;
 import com.localconnect.backend.repository.UserRepository;
 import com.localconnect.backend.service.ServiceListingService;
+
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -24,17 +28,32 @@ public class ServiceListingServiceImpl implements ServiceListingService {
     private final UserRepository userRepository;
     private final ServiceListingMapper serviceListingMapper;
 
+    // CREATE SERVICE
     @Override
-    public ServiceListingResponse createService(ServiceCreateRequest request, String providerEmail) {
+    @CacheEvict(cacheNames = {
+            "approvedServices",
+            "servicesByCategory",
+            "servicesByCategoryAndSubCategory",
+            "serviceRecommendations"
+    }, allEntries = true)
+    public ServiceListingResponse createService(
+            ServiceCreateRequest request,
+            String providerEmail) {
+
         User provider = userRepository.findByEmail(providerEmail)
-                .orElseThrow(() -> new RuntimeException("Provider not found"));
+                .orElseThrow(
+                        () -> new RuntimeException("Provider not found"));
 
         if (provider.getRole() != RoleName.PROVIDER) {
-            throw new RuntimeException("Only providers can create services");
+            throw new RuntimeException(
+                    "Only providers can create services");
         }
 
-        if (request.getSubCategory() == null || request.getSubCategory().isBlank()) {
-            throw new RuntimeException("Sub-category is required");
+        if (request.getSubCategory() == null
+                || request.getSubCategory().isBlank()) {
+
+            throw new RuntimeException(
+                    "Sub-category is required");
         }
 
         ServiceListing serviceListing = ServiceListing.builder()
@@ -46,78 +65,131 @@ public class ServiceListingServiceImpl implements ServiceListingService {
                 .price(request.getPrice())
                 .city(request.getCity())
                 .area(request.getArea())
-                .available(request.getAvailable() != null ? request.getAvailable() : true)
+                .available(
+                        request.getAvailable() != null
+                                ? request.getAvailable()
+                                : true)
                 .imageUrl(request.getImageUrl())
                 .approvalStatus(ApprovalStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return serviceListingMapper.toResponse(serviceListingRepository.save(serviceListing));
+        return serviceListingMapper.toResponse(
+                serviceListingRepository.save(serviceListing));
     }
 
+    // GET ALL APPROVED SERVICES
     @Override
+    @Cacheable(cacheNames = "approvedServices")
     public List<ServiceListingResponse> getApprovedServices() {
-        return serviceListingRepository.findByApprovalStatusAndAvailableTrue(ApprovalStatus.APPROVED)
+
+        return serviceListingRepository
+                .findByApprovalStatusAndAvailableTrue(
+                        ApprovalStatus.APPROVED)
                 .stream()
                 .map(serviceListingMapper::toResponse)
                 .toList();
     }
 
+    // GET PROVIDER SERVICES - NOT CACHED
     @Override
-    public List<ServiceListingResponse> getMyServices(String providerEmail) {
-        User provider = userRepository.findByEmail(providerEmail)
-                .orElseThrow(() -> new RuntimeException("Provider not found"));
+    public List<ServiceListingResponse> getMyServices(
+            String providerEmail) {
 
-        return serviceListingRepository.findByProvider(provider)
+        User provider = userRepository.findByEmail(providerEmail)
+                .orElseThrow(
+                        () -> new RuntimeException("Provider not found"));
+
+        return serviceListingRepository
+                .findByProvider(provider)
                 .stream()
                 .map(serviceListingMapper::toResponse)
                 .toList();
     }
 
+    // GET PENDING SERVICES - NOT CACHED
     @Override
     public List<ServiceListingResponse> getPendingServices() {
-        return serviceListingRepository.findByApprovalStatus(ApprovalStatus.PENDING)
+
+        return serviceListingRepository
+                .findByApprovalStatus(ApprovalStatus.PENDING)
                 .stream()
                 .map(serviceListingMapper::toResponse)
                 .toList();
     }
 
+    // APPROVE SERVICE
     @Override
+    @CacheEvict(cacheNames = {
+            "approvedServices",
+            "servicesByCategory",
+            "servicesByCategoryAndSubCategory",
+            "serviceRecommendations"
+    }, allEntries = true)
     public ServiceListingResponse approveService(Long serviceId) {
-        ServiceListing serviceListing = serviceListingRepository.findById(serviceId)
-                .orElseThrow(() -> new RuntimeException("Service not found"));
 
-        serviceListing.setApprovalStatus(ApprovalStatus.APPROVED);
-        return serviceListingMapper.toResponse(serviceListingRepository.save(serviceListing));
+        ServiceListing serviceListing = serviceListingRepository
+                .findById(serviceId)
+                .orElseThrow(
+                        () -> new RuntimeException("Service not found"));
+
+        serviceListing.setApprovalStatus(
+                ApprovalStatus.APPROVED);
+
+        return serviceListingMapper.toResponse(
+                serviceListingRepository.save(serviceListing));
     }
 
+    // REJECT SERVICE
     @Override
+    @CacheEvict(cacheNames = {
+            "approvedServices",
+            "servicesByCategory",
+            "servicesByCategoryAndSubCategory",
+            "serviceRecommendations"
+    }, allEntries = true)
     public ServiceListingResponse rejectService(Long serviceId) {
-        ServiceListing serviceListing = serviceListingRepository.findById(serviceId)
-                .orElseThrow(() -> new RuntimeException("Service not found"));
 
-        serviceListing.setApprovalStatus(ApprovalStatus.REJECTED);
-        return serviceListingMapper.toResponse(serviceListingRepository.save(serviceListing));
+        ServiceListing serviceListing = serviceListingRepository
+                .findById(serviceId)
+                .orElseThrow(
+                        () -> new RuntimeException("Service not found"));
+
+        serviceListing.setApprovalStatus(
+                ApprovalStatus.REJECTED);
+
+        return serviceListingMapper.toResponse(
+                serviceListingRepository.save(serviceListing));
     }
 
+    // GET SERVICES BY CATEGORY
     @Override
-    public List<ServiceListingResponse> getApprovedServicesByCategory(String category) {
+    @Cacheable(cacheNames = "servicesByCategory", key = "#p0.toLowerCase()")
+    public List<ServiceListingResponse> getApprovedServicesByCategory(
+            String category) {
+
         return serviceListingRepository
-                .findByCategoryIgnoreCaseAndApprovalStatus(category, ApprovalStatus.APPROVED)
+                .findByCategoryIgnoreCaseAndApprovalStatus(
+                        category,
+                        ApprovalStatus.APPROVED)
                 .stream()
                 .filter(service -> Boolean.TRUE.equals(service.getAvailable()))
                 .map(serviceListingMapper::toResponse)
                 .toList();
     }
 
+    // GET SERVICES BY CATEGORY AND SUBCATEGORY
     @Override
-    public List<ServiceListingResponse> getApprovedServicesByCategoryAndSubCategory(String category, String subCategory) {
+    @Cacheable(cacheNames = "servicesByCategoryAndSubCategory", key = "#p0.toLowerCase() + ':' + #p1.toLowerCase()")
+    public List<ServiceListingResponse> getApprovedServicesByCategoryAndSubCategory(
+            String category,
+            String subCategory) {
+
         return serviceListingRepository
                 .findByCategoryIgnoreCaseAndSubCategoryIgnoreCaseAndApprovalStatus(
                         category,
                         subCategory,
-                        ApprovalStatus.APPROVED
-                )
+                        ApprovalStatus.APPROVED)
                 .stream()
                 .filter(service -> Boolean.TRUE.equals(service.getAvailable()))
                 .map(serviceListingMapper::toResponse)
