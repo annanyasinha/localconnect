@@ -18,9 +18,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,8 +62,7 @@ public class ChatServiceImpl implements ChatService {
         GUIDELINES:
         1. When the user asks for recommendations, search, or mentions a problem/need (e.g. "teach me maths", "fix my washroom", "prepare for wedding", "need a cook"), USE `recommendServicesFunction` to query real services from the database and present them clearly with their IDs, names, prices, and locations.
         2. When the user selects a service to book (e.g. "book 51", "book service 51", "book the first one"), if date/time is provided (e.g. "tomorrow at 5 PM"), CALL `bookServiceFunction`. If date/time is missing, ask the user politely for their preferred date and time.
-        3. If the user tells you their name (e.g. "my name is Annanysa"), greet them warmly and remember it.
-        4. Present booking confirmations clearly with Service Name, Date & Time, Booking ID, and Status.
+        3. Present booking confirmations clearly with Service Name, Date & Time, Booking ID, and Status.
         """;
 
     @Override
@@ -75,17 +78,13 @@ public class ChatServiceImpl implements ChatService {
         String userMessage = request.getMessage() != null ? request.getMessage().trim() : "";
         String lowerMsg = userMessage.toLowerCase();
 
-        // 1. Process Name Assignment ("my name is Annanysa") to update DB user profile
-        if (lowerMsg.matches(".*\\b(my name is|call me|i am|iam)\\s+[a-zA-Z\\s]{2,30}$") && !lowerMsg.contains("what is") && !lowerMsg.contains("who am")) {
-            Pattern namePattern = Pattern.compile("(?:my name is|call me|i am|iam)\\s+([a-zA-Z\\s]{2,30})", Pattern.CASE_INSENSITIVE);
-            Matcher nameMatcher = namePattern.matcher(userMessage);
-            if (nameMatcher.find()) {
-                String extractedName = capitalizeWords(nameMatcher.group(1).trim());
-                User user = userRepository.findByEmail(userEmail).orElse(null);
-                if (user != null) {
-                    user.setFullName(extractedName);
-                    userRepository.save(user);
-                }
+        // 1. Conversation Isolation Check
+        List<ChatMessage> history = chatMessageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+        if (!history.isEmpty()) {
+            boolean belongsToSomeoneElse = history.stream()
+                    .anyMatch(msg -> msg.getUserEmail() != null && !msg.getUserEmail().equals(userEmail));
+            if (belongsToSomeoneElse) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Conversation access denied");
             }
         }
 
@@ -98,8 +97,8 @@ public class ChatServiceImpl implements ChatService {
                 .createdAt(LocalDateTime.now())
                 .build());
 
-        // 3. Fetch Multi-Turn Chat History from Memory
-        List<ChatMessage> history = chatMessageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+        // 3. Refresh Multi-Turn Chat History from Memory
+        history = chatMessageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
         User user = userRepository.findByEmail(userEmail).orElse(null);
         String userName = (user != null && user.getFullName() != null) ? user.getFullName() : "Guest User";
 
@@ -140,7 +139,7 @@ public class ChatServiceImpl implements ChatService {
         if (reply != null) {
             if (reply.contains("cancelled successfully")) {
                 action = "BOOKING_CANCELLED";
-            } else if (reply.contains("Booking Summary") || reply.contains("has been booked") || reply.contains("Scheduled") || reply.contains("Booking Confirmed")) {
+            } else if (reply.contains("Booking Summary") || reply.contains("has been booked") || reply.contains("Scheduled") || reply.contains("Booking Confirmed") || reply.contains("Booking Request Submitted")) {
                 action = "BOOKING_CREATED";
             } else if (reply.contains("Top Services") || reply.contains("Found")) {
                 action = "RECOMMENDATIONS";
@@ -184,25 +183,19 @@ public class ChatServiceImpl implements ChatService {
             return String.format("👋 Hello %s! Welcome to LocalConnect AI Assistant. How can I help you today?\n\n1️⃣ Search services (e.g. 'Show home tutors' or 'Plumbers')\n2️⃣ Book a service (e.g. 'Book service 51')\n3️⃣ Manage bookings ('Show my bookings', 'Cancel booking #5')", userName);
         }
 
-        // 2. Name Assignment
-        if (lowerMsg.matches(".*\\b(my name is|call me|i am|iam)\\s+[a-zA-Z\\s]{2,30}$") && !lowerMsg.contains("what is") && !lowerMsg.contains("who am")) {
-            pendingBookingState.remove(conversationId);
-            return String.format("Nice to meet you, %s! 👤 I have saved your name as %s (%s). How can I assist you today?", userName, userName, userEmail);
-        }
-
-        // 3. Name & Profile Inquiry
+        // 2. Name & Profile Inquiry
         if (lowerMsg.contains("my name") || lowerMsg.contains("who am i") || lowerMsg.contains("my email") || lowerMsg.contains("my profile")) {
             pendingBookingState.remove(conversationId);
             return String.format("👤 Your name is %s (Email: %s). How can I assist you today?", userName, userEmail);
         }
 
-        // 4. Assistant Identity Inquiry
+        // 3. Assistant Identity Inquiry
         if (lowerMsg.contains("who are you") || lowerMsg.contains("what is your name") || lowerMsg.contains("what can you do")) {
             pendingBookingState.remove(conversationId);
             return "🤖 I am LocalConnect AI Assistant. I can help you search local services, book tickets/services, manage existing bookings, or cancel bookings! How can I assist you today?";
         }
 
-        // 5. Show My Bookings
+        // 4. Show My Bookings
         if (lowerMsg.contains("status") || lowerMsg.contains("my booking") || lowerMsg.contains("स्थिति")) {
             pendingBookingState.remove(conversationId);
             Matcher matcher = Pattern.compile("(\\d+)").matcher(lowerMsg);
@@ -231,7 +224,7 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
-        // 6. Cancel Booking
+        // 5. Cancel Booking
         if (lowerMsg.contains("cancel") || lowerMsg.contains("रद्द")) {
             pendingBookingState.remove(conversationId);
             Matcher matcher = Pattern.compile("(\\d+)").matcher(lowerMsg);
@@ -249,16 +242,20 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
-        // 7. Booking Intent
+        // 6. Booking Intent
         if (isBookingIntent(lowerMsg)) {
             Long serviceId = extractServiceIdFromMsgOrHistory(lowerMsg, history);
 
             if (serviceId != null) {
                 if (isValidDateTimeExpression(userMessage)) {
+                    LocalDateTime parsedDate = parseBookingDate(userMessage);
+                    if (parsedDate == null) {
+                        return "I couldn't parse a valid future date and time from your request. Please specify a future date and time (e.g., 'Tomorrow at 5 PM').";
+                    }
                     BookingCreateRequest bookingRequest = new BookingCreateRequest();
                     bookingRequest.setServiceId(serviceId);
                     bookingRequest.setMessage("Booked via LocalConnect AI Chatbot: " + userMessage);
-                    bookingRequest.setBookingDate(LocalDateTime.now().plusDays(1));
+                    bookingRequest.setBookingDate(parsedDate);
 
                     try {
                         BookingResponse res = bookingService.createBooking(bookingRequest, userEmail);
@@ -277,15 +274,19 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
-        // 8. Waiting for Date
+        // 7. Waiting for Date
         if (pendingBookingState.containsKey(conversationId) || isReplyingToPendingBookingDate(history, lowerMsg)) {
             Long pendingServiceId = pendingBookingState.getOrDefault(conversationId, extractPendingServiceId(history));
             if (pendingServiceId != null) {
                 if (isValidDateTimeExpression(userMessage)) {
+                    LocalDateTime parsedDate = parseBookingDate(userMessage);
+                    if (parsedDate == null) {
+                        return "I couldn't parse a valid future date and time. Please specify a future date and time (e.g., 'Tomorrow at 5 PM').";
+                    }
                     BookingCreateRequest bookingRequest = new BookingCreateRequest();
                     bookingRequest.setServiceId(pendingServiceId);
                     bookingRequest.setMessage("Booked via LocalConnect AI Chatbot: " + userMessage);
-                    bookingRequest.setBookingDate(LocalDateTime.now().plusDays(1));
+                    bookingRequest.setBookingDate(parsedDate);
 
                     try {
                         BookingResponse res = bookingService.createBooking(bookingRequest, userEmail);
@@ -301,7 +302,7 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
-        // 9. Service Search & Recommendation
+        // 8. Service Search & Recommendation
         if (lowerMsg.contains("wedding") || lowerMsg.contains("marriage") || lowerMsg.contains("party") || lowerMsg.contains("event")) {
             List<ServiceListingResponse> services = bookingService.recommendServices("", "");
             if (!services.isEmpty()) {
@@ -343,6 +344,67 @@ public class ChatServiceImpl implements ChatService {
         return "👋 Hello! I am your LocalConnect AI Assistant. I can help you:\n1️⃣ Search local services\n2️⃣ Book services & tickets\n3️⃣ Manage bookings ('Show my bookings', 'Cancel booking #5')\n\nHow can I help you today?";
     }
 
+    private LocalDateTime parseBookingDate(String userMessage) {
+        if (userMessage == null || userMessage.isBlank()) return null;
+        String lower = userMessage.toLowerCase().trim();
+        ZoneId zoneId = ZoneId.of("Asia/Kolkata");
+        ZonedDateTime now = ZonedDateTime.now(zoneId);
+
+        ZonedDateTime targetDate = null;
+        if (lower.contains("tomorrow")) {
+            targetDate = now.plusDays(1);
+        } else if (lower.contains("today") || lower.contains("tonight")) {
+            targetDate = now;
+        } else if (lower.contains("next week")) {
+            targetDate = now.plusWeeks(1);
+        }
+
+        int hour = 11;
+        int minute = 0;
+        Matcher timeMatcher = Pattern.compile("\\b(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?\\b", Pattern.CASE_INSENSITIVE).matcher(lower);
+        while (timeMatcher.find()) {
+            try {
+                int h = Integer.parseInt(timeMatcher.group(1));
+                int m = timeMatcher.group(2) != null ? Integer.parseInt(timeMatcher.group(2)) : 0;
+                String ampm = timeMatcher.group(3);
+                if (ampm != null) {
+                    if (ampm.equalsIgnoreCase("pm") && h < 12) h += 12;
+                    else if (ampm.equalsIgnoreCase("am") && h == 12) h = 0;
+                }
+                if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+                    hour = h;
+                    minute = m;
+                    break;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (targetDate != null) {
+            LocalDateTime ldt = targetDate.withHour(hour).withMinute(minute).withSecond(0).withNano(0).toLocalDateTime();
+            if (ldt.isAfter(now.toLocalDateTime())) {
+                return ldt;
+            }
+        }
+
+        // Try ISO date pattern yyyy-MM-dd
+        Matcher isoMatcher = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})(?:[T\\s]+(\\d{2}):(\\d{2}))?\\b").matcher(userMessage);
+        if (isoMatcher.find()) {
+            try {
+                int y = Integer.parseInt(isoMatcher.group(1));
+                int m = Integer.parseInt(isoMatcher.group(2));
+                int d = Integer.parseInt(isoMatcher.group(3));
+                int h = isoMatcher.group(4) != null ? Integer.parseInt(isoMatcher.group(4)) : 11;
+                int min = isoMatcher.group(5) != null ? Integer.parseInt(isoMatcher.group(5)) : 0;
+                LocalDateTime ldt = LocalDateTime.of(y, m, d, h, min);
+                if (ldt.isAfter(now.toLocalDateTime())) {
+                    return ldt;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        return null;
+    }
+
     private boolean isValidDateTimeExpression(String userMessage) {
         if (userMessage == null || userMessage.isBlank()) return false;
         String lower = userMessage.toLowerCase().trim();
@@ -379,18 +441,20 @@ public class ChatServiceImpl implements ChatService {
 
     private String formatBookingSummary(BookingResponse res, String dateTimeUserStr) {
         String serviceName = res.getServiceTitle() != null ? res.getServiceTitle() : "Service #" + res.getServiceId();
-        String displayDate = (dateTimeUserStr != null && !dateTimeUserStr.isBlank())
-                ? capitalizeWords(dateTimeUserStr)
-                : (res.getBookingDate() != null ? res.getBookingDate().toString().replace("T", " at ") : "Tomorrow at 11:00 AM");
+        String displayDate = (res.getBookingDate() != null)
+                ? res.getBookingDate().toString().replace("T", " at ")
+                : (dateTimeUserStr != null && !dateTimeUserStr.isBlank() ? capitalizeWords(dateTimeUserStr) : "Scheduled");
+
+        String statusHeader = "PENDING".equalsIgnoreCase(res.getStatus()) ? "Booking Request Submitted" : "Booking Confirmed";
 
         return String.format("""
-            🎉 Booking Confirmed!
+            🎉 %s!
 
             Service: %s
             Date & Time: %s
             Status: %s
             Booking ID: #%d
-            """, serviceName, displayDate, res.getStatus(), res.getId()).trim();
+            """, statusHeader, serviceName, displayDate, res.getStatus(), res.getId()).trim();
     }
 
     private String capitalizeWords(String str) {
