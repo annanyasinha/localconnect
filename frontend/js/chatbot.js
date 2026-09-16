@@ -3,8 +3,23 @@
  */
 
 (function () {
-    let conversationId = localStorage.getItem('chatConversationId') || ('conv_' + Math.random().toString(36).substring(2, 9));
-    localStorage.setItem('chatConversationId', conversationId);
+    function getConversationId() {
+        const userStr = localStorage.getItem('user');
+        let userEmail = 'guest';
+        if (userStr) {
+            try {
+                const u = JSON.parse(userStr);
+                if (u && u.email) userEmail = u.email;
+            } catch (e) { }
+        }
+        const key = 'chatConversationId_' + userEmail;
+        let convId = localStorage.getItem(key);
+        if (!convId) {
+            convId = 'conv_' + Math.random().toString(36).substring(2, 9);
+            localStorage.setItem(key, convId);
+        }
+        return convId;
+    }
 
     function initChatbot() {
         if (document.getElementById('chat-widget-container')) return;
@@ -89,10 +104,22 @@
             const typingElem = showTyping();
 
             // Get logged in user email if available
-            let userEmail = localStorage.getItem('userEmail') || localStorage.getItem('email') || 'guest@localconnect.com';
+            let userEmail = '';
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const u = JSON.parse(userStr);
+                    if (u && u.email) userEmail = u.email;
+                } catch (e) { }
+            }
+            if (!userEmail) {
+                userEmail = localStorage.getItem('userEmail') || localStorage.getItem('email') || 'guest@localconnect.com';
+            }
+
+            const currentConvId = getConversationId();
 
             try {
-                const apiEndpoint = typeof API_BASE !== 'undefined' 
+                const apiEndpoint = typeof API_BASE !== 'undefined'
                     ? API_BASE + '/chat'
                     : (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:" || !window.location.hostname
                         ? 'http://localhost:8088/api/chat'
@@ -106,7 +133,7 @@
                     },
                     body: JSON.stringify({
                         message: text,
-                        conversationId: conversationId,
+                        conversationId: currentConvId,
                         userEmail: userEmail
                     })
                 });
@@ -115,7 +142,15 @@
 
                 if (response.ok) {
                     const data = await response.json();
+                    if (data.conversationId && userEmail) {
+                        localStorage.setItem('chatConversationId_' + userEmail, data.conversationId);
+                    }
                     appendMessage('assistant', data.reply);
+                } else if (response.status === 401) {
+                    appendMessage('assistant', '🔒 Session expired or unauthorized. Please log in to continue using the AI Assistant.');
+                } else if (response.status === 403) {
+                    appendMessage('assistant', '⛔ Access denied to this conversation. A new session has been initialized.');
+                    localStorage.removeItem('chatConversationId_' + (userEmail || 'guest'));
                 } else {
                     appendMessage('assistant', '⚠️ Unable to connect to AI server. Please verify backend is running on port 8088.');
                 }
@@ -155,3 +190,4 @@
         initChatbot();
     }
 })();
+

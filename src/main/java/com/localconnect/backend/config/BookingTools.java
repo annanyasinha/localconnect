@@ -10,10 +10,15 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Description;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -26,44 +31,63 @@ public class BookingTools {
     private final BookingService bookingService;
 
     // Record classes for Tool Request inputs
-    public record BookServiceRequest(Long serviceId, String userEmail, String bookingDate, String message) {}
-    public record CancelBookingRequest(Long bookingId, String userEmail) {}
-    public record RescheduleBookingRequest(Long bookingId, String newBookingDate, String userEmail) {}
-    public record CheckStatusRequest(Long bookingId, String userEmail) {}
+    public record BookServiceRequest(Long serviceId, String bookingDate, String message) {}
+    public record CancelBookingRequest(Long bookingId) {}
+    public record RescheduleBookingRequest(Long bookingId, String newBookingDate) {}
+    public record CheckStatusRequest(Long bookingId) {}
     public record RecommendServicesRequest(String category, String city) {}
 
-    @Tool(description = "Book a local service or ticket for a given service ID, date, and user email")
-    public BookingResponse bookService(Long serviceId, String userEmail, String bookingDate, String message) {
+    private String getAuthenticatedUserEmail() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            return auth.getName();
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in");
+    }
+
+    @Tool(description = "Book a local service for a given service ID, date, and optional message")
+    public BookingResponse bookService(Long serviceId, String bookingDate, String message) {
+        String userEmail = getAuthenticatedUserEmail();
         log.info("AI @Tool Executed: bookService for serviceId={}, user={}", serviceId, userEmail);
+
+        if (bookingDate == null || bookingDate.isBlank()) {
+            throw new IllegalArgumentException("Invalid booking date. Please provide a valid date and time.");
+        }
+
         BookingCreateRequest dto = new BookingCreateRequest();
         dto.setServiceId(serviceId);
         dto.setMessage(message != null ? message : "Booked via AI Tool");
-        if (bookingDate != null && !bookingDate.isBlank()) {
+
+        try {
+            dto.setBookingDate(LocalDateTime.parse(bookingDate, DateTimeFormatter.ISO_DATE_TIME));
+        } catch (DateTimeParseException e) {
             try {
-                dto.setBookingDate(LocalDateTime.parse(bookingDate, DateTimeFormatter.ISO_DATE_TIME));
-            } catch (Exception e) {
-                dto.setBookingDate(LocalDateTime.now().plusDays(1));
+                dto.setBookingDate(LocalDateTime.parse(bookingDate));
+            } catch (DateTimeParseException ex) {
+                throw new IllegalArgumentException("Invalid booking date. Please provide a valid date and time.");
             }
-        } else {
-            dto.setBookingDate(LocalDateTime.now().plusDays(1));
         }
+
         return bookingService.createBooking(dto, userEmail);
     }
 
-    @Tool(description = "Cancel an existing booking using booking ID and user email")
-    public BookingResponse cancelBooking(Long bookingId, String userEmail) {
+    @Tool(description = "Cancel an existing booking using booking ID")
+    public BookingResponse cancelBooking(Long bookingId) {
+        String userEmail = getAuthenticatedUserEmail();
         log.info("AI @Tool Executed: cancelBooking for bookingId={}, user={}", bookingId, userEmail);
         return bookingService.cancelBooking(bookingId, userEmail);
     }
 
     @Tool(description = "Reschedule an existing booking with a new date/time")
-    public BookingResponse rescheduleBooking(Long bookingId, String newBookingDate, String userEmail) {
+    public BookingResponse rescheduleBooking(Long bookingId, String newBookingDate) {
+        String userEmail = getAuthenticatedUserEmail();
         log.info("AI @Tool Executed: rescheduleBooking for bookingId={}, newDate={}", bookingId, newBookingDate);
         return bookingService.rescheduleBooking(bookingId, newBookingDate, userEmail);
     }
 
-    @Tool(description = "Check the current status of a booking by booking ID and user email")
-    public BookingResponse checkBookingStatus(Long bookingId, String userEmail) {
+    @Tool(description = "Check the current status of a booking by booking ID")
+    public BookingResponse checkBookingStatus(Long bookingId) {
+        String userEmail = getAuthenticatedUserEmail();
         log.info("AI @Tool Executed: checkBookingStatus for bookingId={}", bookingId);
         return bookingService.getBookingStatus(bookingId, userEmail);
     }
@@ -75,27 +99,27 @@ public class BookingTools {
     }
 
     @Bean
-    @Description("Book a local service or ticket for a given service ID, date, and user email")
+    @Description("Book a local service for a given service ID, date, and optional message")
     public Function<BookServiceRequest, BookingResponse> bookServiceFunction() {
-        return request -> bookService(request.serviceId(), request.userEmail(), request.bookingDate(), request.message());
+        return request -> bookService(request.serviceId(), request.bookingDate(), request.message());
     }
 
     @Bean
-    @Description("Cancel an existing booking using booking ID and user email")
+    @Description("Cancel an existing booking using booking ID")
     public Function<CancelBookingRequest, BookingResponse> cancelBookingFunction() {
-        return request -> cancelBooking(request.bookingId(), request.userEmail());
+        return request -> cancelBooking(request.bookingId());
     }
 
     @Bean
     @Description("Reschedule an existing booking with a new date/time")
     public Function<RescheduleBookingRequest, BookingResponse> rescheduleBookingFunction() {
-        return request -> rescheduleBooking(request.bookingId(), request.newBookingDate(), request.userEmail());
+        return request -> rescheduleBooking(request.bookingId(), request.newBookingDate());
     }
 
     @Bean
-    @Description("Check the current status of a booking by booking ID and user email")
+    @Description("Check the current status of a booking by booking ID")
     public Function<CheckStatusRequest, BookingResponse> checkBookingStatusFunction() {
-        return request -> checkBookingStatus(request.bookingId(), request.userEmail());
+        return request -> checkBookingStatus(request.bookingId());
     }
 
     @Bean
