@@ -79,33 +79,17 @@ public class ChatServiceImpl implements ChatService {
         String lowerMsg = userMessage.toLowerCase();
 
         // 1. Conversation Isolation Check
-        List<ChatMessage> history = chatMessageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
-        if (!history.isEmpty()) {
-            boolean belongsToSomeoneElse = history.stream()
-                    .anyMatch(msg -> msg.getUserEmail() != null && !msg.getUserEmail().equals(userEmail));
-            if (belongsToSomeoneElse) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Conversation access denied");
-        // 1. Process Name Assignment ("my name is Annanysa") to update DB user profile
-        if (lowerMsg.matches(".*\\b(my name is|call me|i am|iam)\\s+[a-zA-Z\\s]{2,30}$") && !lowerMsg.contains("what is") && !lowerMsg.contains("who am")) {
-            Pattern namePattern = Pattern.compile("(?:my name is|call me|i am|iam)\\s+([a-zA-Z\\s]{2,30})", Pattern.CASE_INSENSITIVE);
-            Matcher nameMatcher = namePattern.matcher(userMessage);
-            if (nameMatcher.find()) {
-                String extractedName = capitalizeWords(nameMatcher.group(1).trim());
-                User user = userRepository.findByEmail(userEmail).orElse(null);
-                if (user == null) {
-                    userRepository.save(User.builder()
-                            .email(userEmail)
-                            .fullName(extractedName)
-                            .password("guest123")
-                            .role(RoleName.USER)
-                            .enabled(true)
-                            .createdAt(LocalDateTime.now())
-                            .build());
-                } else {
-                    user.setFullName(extractedName);
-                    userRepository.save(user);
-                }
-            }
+        List<ChatMessage> history =
+                chatMessageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+
+        boolean belongsToSomeoneElse = history.stream()
+                .anyMatch(msg -> !userEmail.equalsIgnoreCase(msg.getUserEmail()));
+
+        if (belongsToSomeoneElse) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Conversation access denied"
+            );
         }
 
         // 2. Persist User Message to Chat Memory
