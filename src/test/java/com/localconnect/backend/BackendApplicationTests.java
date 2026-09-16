@@ -14,7 +14,10 @@ import org.springframework.boot.test.mock.mockito.MockBean;
     "spring.datasource.username=sa",
     "spring.datasource.password=",
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-    "spring.jpa.hibernate.ddl-auto=create-drop"
+    "spring.jpa.hibernate.ddl-auto=create-drop",
+    "jwt.secret=testJwtSecretKeyForUnitTest12345678901234567890",
+    "spring.ai.openai.api-key=test_dummy_key",
+    "spring.ai.huggingface.chat.api-key=test_dummy_key"
 })
 class BackendApplicationTests {
 
