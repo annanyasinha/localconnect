@@ -2,207 +2,256 @@ package com.localconnect.backend.service.impl;
 
 import com.localconnect.backend.dto.request.BookingCreateRequest;
 import com.localconnect.backend.dto.response.BookingResponse;
+
 import com.localconnect.backend.entity.Booking;
 import com.localconnect.backend.entity.ServiceListing;
 import com.localconnect.backend.entity.User;
+
 import com.localconnect.backend.enums.ApprovalStatus;
+
 import com.localconnect.backend.mapper.BookingMapper;
+import com.localconnect.backend.mapper.ServiceListingMapper;
+
 import com.localconnect.backend.repository.BookingRepository;
 import com.localconnect.backend.repository.ServiceListingRepository;
 import com.localconnect.backend.repository.UserRepository;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
-
 
 @ExtendWith(MockitoExtension.class)
 class BookingServiceImplTest {
 
-    @Mock
-    private BookingRepository bookingRepository;
+        @Mock
+        private BookingRepository bookingRepository;
 
-    @Mock
-    private UserRepository userRepository;
+        @Mock
+        private UserRepository userRepository;
 
-    @Mock
-    private ServiceListingRepository serviceListingRepository;
+        @Mock
+        private ServiceListingRepository serviceListingRepository;
 
-    @Mock
-    private BookingMapper bookingMapper;
+        @Mock
+        private BookingMapper bookingMapper;
 
-    @InjectMocks
-    private BookingServiceImpl bookingService;
+        @Mock
+        private ServiceListingMapper serviceListingMapper;
 
-    @Test
-    void createBooking_shouldCreateBookingSuccessfully() {
+        @InjectMocks
+        private BookingServiceImpl bookingService;
 
-        BookingCreateRequest request = mock(BookingCreateRequest.class);
+        // ==========================================
+        // TEST 1: SUCCESSFUL BOOKING
+        // ==========================================
 
-        when(request.getServiceId()).thenReturn(1L);
-        when(request.getMessage()).thenReturn("Please come in the morning");
-        when(request.getBookingDate()).thenReturn(null);
+        @Test
+        void createBooking_shouldCreateBookingSuccessfully() {
 
-        User user = mock(User.class);
+                BookingCreateRequest request = mock(BookingCreateRequest.class);
 
-        ServiceListing serviceListing = mock(ServiceListing.class);
+                when(request.getServiceId())
+                                .thenReturn(1L);
 
-        when(userRepository.findByEmail("test@gmail.com"))
-                .thenReturn(Optional.of(user));
+                when(request.getMessage())
+                                .thenReturn("Please come in the morning");
 
-        when(serviceListingRepository.findById(1L))
-                .thenReturn(Optional.of(serviceListing));
+                User user = mock(User.class);
 
-        when(serviceListing.getApprovalStatus())
-                .thenReturn(ApprovalStatus.APPROVED);
+                when(userRepository.findByEmail("test@gmail.com"))
+                                .thenReturn(Optional.of(user));
 
-        Booking savedBooking = mock(Booking.class);
+                ServiceListing serviceListing = mock(ServiceListing.class);
 
-        when(bookingRepository.save(any(Booking.class)))
-                .thenReturn(savedBooking);
+                when(serviceListingRepository.findById(1L))
+                                .thenReturn(Optional.of(serviceListing));
 
-        BookingResponse bookingResponse = mock(BookingResponse.class);
+                // Service must be approved.
+                when(serviceListing.getApprovalStatus())
+                                .thenReturn(ApprovalStatus.APPROVED);
 
-        when(bookingMapper.toResponse(savedBooking))
-                .thenReturn(bookingResponse);
+                // IMPORTANT FIX:
+                // The updated booking service checks availability.
+                when(serviceListing.getAvailable())
+                                .thenReturn(true);
 
-        BookingResponse response =
-                bookingService.createBooking(request, "test@gmail.com");
+                Booking savedBooking = mock(Booking.class);
 
-        assertNotNull(response);
-        assertEquals(bookingResponse, response);
+                when(bookingRepository.save(any(Booking.class)))
+                                .thenReturn(savedBooking);
 
-        verify(userRepository)
-                .findByEmail("test@gmail.com");
+                BookingResponse bookingResponse = mock(BookingResponse.class);
 
-        verify(serviceListingRepository)
-                .findById(1L);
+                when(bookingMapper.toResponse(savedBooking))
+                                .thenReturn(bookingResponse);
 
-        verify(bookingRepository)
-                .save(any(Booking.class));
+                // Execute.
+                BookingResponse response = bookingService.createBooking(
+                                request,
+                                "test@gmail.com");
 
-        verify(bookingMapper)
-                .toResponse(savedBooking);
-    }
+                // Assertions.
+                assertNotNull(response);
 
-    @Test
-    void createBooking_shouldThrowExceptionWhenUserDoesNotExist() {
+                assertEquals(bookingResponse, response);
 
-        BookingCreateRequest request = mock(BookingCreateRequest.class);
+                // Verify repository calls.
+                verify(userRepository)
+                                .findByEmail("test@gmail.com");
 
-        when(userRepository.findByEmail("unknown@gmail.com"))
-                .thenReturn(Optional.empty());
+                verify(serviceListingRepository)
+                                .findById(1L);
 
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
-                () -> bookingService.createBooking(
-                        request,
-                        "unknown@gmail.com"
-                )
-        );
+                verify(bookingRepository)
+                                .save(any(Booking.class));
 
-        assertEquals("User not found", exception.getMessage());
+                verify(bookingMapper)
+                                .toResponse(savedBooking);
+        }
 
-        verify(userRepository)
-                .findByEmail("unknown@gmail.com");
+        // ==========================================
+        // TEST 2: USER DOES NOT EXIST
+        // ==========================================
 
-        verify(serviceListingRepository, never())
-                .findById(anyLong());
+        @Test
+        void createBooking_shouldThrowExceptionWhenUserDoesNotExist() {
 
-        verify(bookingRepository, never())
-                .save(any(Booking.class));
-    }
+                BookingCreateRequest request = mock(BookingCreateRequest.class);
 
-    @Test
-    void createBooking_shouldThrowExceptionWhenServiceIsNotApproved() {
+                when(userRepository.findByEmail("unknown@gmail.com"))
+                                .thenReturn(Optional.empty());
 
-        BookingCreateRequest request = mock(BookingCreateRequest.class);
+                RuntimeException exception = assertThrows(
+                                RuntimeException.class,
+                                () -> bookingService.createBooking(
+                                                request,
+                                                "unknown@gmail.com"));
 
-        when(request.getServiceId()).thenReturn(1L);
+                assertEquals(
+                                "User not found",
+                                exception.getMessage());
 
-        User user = mock(User.class);
+                verify(userRepository)
+                                .findByEmail("unknown@gmail.com");
 
-        when(userRepository.findByEmail("test@gmail.com"))
-                .thenReturn(Optional.of(user));
+                verify(serviceListingRepository, never())
+                                .findById(anyLong());
 
-        ServiceListing serviceListing = mock(ServiceListing.class);
+                verify(bookingRepository, never())
+                                .save(any(Booking.class));
+        }
 
-        when(serviceListingRepository.findById(1L))
-                .thenReturn(Optional.of(serviceListing));
+        // ==========================================
+        // TEST 3: SERVICE IS NOT APPROVED
+        // ==========================================
 
-        when(serviceListing.getApprovalStatus())
-                .thenReturn(ApprovalStatus.PENDING);
+        @Test
+        void createBooking_shouldThrowExceptionWhenServiceIsNotApproved() {
 
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
-                () -> bookingService.createBooking(
-                        request,
-                        "test@gmail.com"
-                )
-        );
+                BookingCreateRequest request = mock(BookingCreateRequest.class);
 
-        assertEquals("Service is not approved", exception.getMessage());
+                when(request.getServiceId())
+                                .thenReturn(1L);
 
-        verify(userRepository)
-                .findByEmail("test@gmail.com");
+                User user = mock(User.class);
 
-        verify(serviceListingRepository)
-                .findById(1L);
+                when(userRepository.findByEmail("test@gmail.com"))
+                                .thenReturn(Optional.of(user));
 
-        verify(bookingRepository, never())
-                .save(any(Booking.class));
+                ServiceListing serviceListing = mock(ServiceListing.class);
 
-        verify(bookingMapper, never())
-                .toResponse(any());
-    }
-    @Test
-    void getMyBookings_shouldReturnUserBookings() {
+                when(serviceListingRepository.findById(1L))
+                                .thenReturn(Optional.of(serviceListing));
 
-        User user = mock(User.class);
+                when(serviceListing.getApprovalStatus())
+                                .thenReturn(ApprovalStatus.PENDING);
 
-        when(userRepository.findByEmail("test@gmail.com"))
-                .thenReturn(Optional.of(user));
+                RuntimeException exception = assertThrows(
+                                RuntimeException.class,
+                                () -> bookingService.createBooking(
+                                                request,
+                                                "test@gmail.com"));
 
-        Booking booking1 = mock(Booking.class);
-        Booking booking2 = mock(Booking.class);
+                assertEquals(
+                                "Service is not approved",
+                                exception.getMessage());
 
-        when(bookingRepository.findByUser(user))
-                .thenReturn(List.of(booking1, booking2));
+                verify(userRepository)
+                                .findByEmail("test@gmail.com");
 
-        BookingResponse response1 = mock(BookingResponse.class);
-        BookingResponse response2 = mock(BookingResponse.class);
+                verify(serviceListingRepository)
+                                .findById(1L);
 
-        when(bookingMapper.toResponse(booking1))
-                .thenReturn(response1);
+                verify(bookingRepository, never())
+                                .save(any(Booking.class));
 
-        when(bookingMapper.toResponse(booking2))
-                .thenReturn(response2);
+                verify(bookingMapper, never())
+                                .toResponse(any());
+        }
 
-        List<BookingResponse> responses =
-                bookingService.getMyBookings("test@gmail.com");
+        // ==========================================
+        // TEST 4: GET CUSTOMER BOOKINGS
+        // ==========================================
 
-        assertNotNull(responses);
-        assertEquals(2, responses.size());
-        assertEquals(response1, responses.get(0));
-        assertEquals(response2, responses.get(1));
+        @Test
+        void getMyBookings_shouldReturnUserBookings() {
 
-        verify(userRepository)
-                .findByEmail("test@gmail.com");
+                User user = mock(User.class);
 
-        verify(bookingRepository)
-                .findByUser(user);
+                when(userRepository.findByEmail("test@gmail.com"))
+                                .thenReturn(Optional.of(user));
 
-        verify(bookingMapper)
-                .toResponse(booking1);
+                Booking booking1 = mock(Booking.class);
+                Booking booking2 = mock(Booking.class);
 
-        verify(bookingMapper)
-                .toResponse(booking2);
-    }
+                when(bookingRepository.findByUser(user))
+                                .thenReturn(List.of(booking1, booking2));
+
+                BookingResponse response1 = mock(BookingResponse.class);
+
+                BookingResponse response2 = mock(BookingResponse.class);
+
+                when(bookingMapper.toResponse(booking1))
+                                .thenReturn(response1);
+
+                when(bookingMapper.toResponse(booking2))
+                                .thenReturn(response2);
+
+                // Execute.
+                List<BookingResponse> responses = bookingService.getMyBookings(
+                                "test@gmail.com");
+
+                // Assertions.
+                assertNotNull(responses);
+
+                assertEquals(2, responses.size());
+
+                assertEquals(response1, responses.get(0));
+
+                assertEquals(response2, responses.get(1));
+
+                // Verify repository calls.
+                verify(userRepository)
+                                .findByEmail("test@gmail.com");
+
+                verify(bookingRepository)
+                                .findByUser(user);
+
+                verify(bookingMapper)
+                                .toResponse(booking1);
+
+                verify(bookingMapper)
+                                .toResponse(booking2);
+        }
 }

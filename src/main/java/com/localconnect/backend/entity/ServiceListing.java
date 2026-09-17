@@ -1,6 +1,7 @@
 package com.localconnect.backend.entity;
 
 import com.localconnect.backend.enums.ApprovalStatus;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -8,7 +9,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "service_listings")
+@Table(name = "service_listings", indexes = {
+        @Index(name = "idx_service_approval_availability", columnList = "approval_status, available"),
+        @Index(name = "idx_service_category_subcategory", columnList = "approval_status, category, sub_category")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -51,9 +55,9 @@ public class ServiceListing {
     private String imageUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "approval_status", nullable = false)
     private ApprovalStatus approvalStatus;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }
