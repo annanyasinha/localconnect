@@ -1,27 +1,31 @@
 package com.localconnect.backend.service;
 
-import com.localconnect.backend.dto.request.BookingCreateRequest;
+import com.localconnect.backend.config.BookingTools;
 import com.localconnect.backend.dto.request.ChatRequest;
 import com.localconnect.backend.dto.response.BookingResponse;
 import com.localconnect.backend.dto.response.ChatResponse;
-import com.localconnect.backend.dto.response.ServiceListingResponse;
 import com.localconnect.backend.entity.ChatMessage;
-import com.localconnect.backend.enums.BookingStatus;
 import com.localconnect.backend.repository.ChatMessageRepository;
-import com.localconnect.backend.repository.UserRepository;
 import com.localconnect.backend.service.impl.ChatServiceImpl;
-import org.junit.jupiter.api.BeforeEach;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.Prompt;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -30,116 +34,301 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ChatServiceTest {
 
-    @Mock
-    private ChatMessageRepository chatMessageRepository;
+        @Mock
+        private ChatMessageRepository chatMessageRepository;
 
-    @Mock
-    private BookingService bookingService;
+        @Mock
+        private BookingTools bookingTools;
 
-    @Mock
-    private UserRepository userRepository;
+        @Mock
+        private ChatModel chatModel;
 
-    @InjectMocks
-    private ChatServiceImpl chatService;
+        @InjectMocks
+        private ChatServiceImpl chatService;
 
-    private BookingResponse mockBookingResponse;
+        private ChatRequest request(String message) {
+                return ChatRequest.builder()
+                                .message(message)
+                                .conversationId("test-conversation")
+                                .userEmail("test@example.com")
+                                .build();
+        }
 
-    @BeforeEach
-    void setUp() {
-        mockBookingResponse = new BookingResponse();
-        mockBookingResponse.setId(1L);
-        mockBookingResponse.setServiceId(10L);
-        mockBookingResponse.setServiceTitle("Plumbing Repair");
-        mockBookingResponse.setBookingDate(LocalDateTime.now().plusDays(1));
-        mockBookingResponse.setStatus(BookingStatus.PENDING.name());
-    }
+        private void mockAIResponse(String message) {
 
-    @Test
-    void testProcessChatMessage_BookService() {
-        when(bookingService.createBooking(any(BookingCreateRequest.class), anyString()))
-                .thenReturn(mockBookingResponse);
+                org.springframework.ai.chat.model.ChatResponse aiResponse = new org.springframework.ai.chat.model.ChatResponse(
+                                List.of(
+                                                new Generation(
+                                                                new AssistantMessage(message))));
 
-        ChatRequest request = ChatRequest.builder()
-                .message("Book service #10 for tomorrow")
-                .conversationId("test-conv-123")
-                .userEmail("test@example.com")
-                .build();
+                when(chatModel.call(any(Prompt.class)))
+                                .thenReturn(aiResponse);
+        }
 
-        ChatResponse response = chatService.processChatMessage(request);
+        @Test
+        void shouldReturnAIResponse() {
 
-        assertNotNull(response);
-        assertEquals("BOOKING_CREATED", response.getActionPerformed());
-        assertTrue(response.getReply().contains("Plumbing Repair") || response.getReply().contains("#1"));
-        verify(chatMessageRepository, times(2)).save(any(ChatMessage.class));
-    }
+                mockAIResponse("Hello! How can I help you?");
 
-    @Test
-    void testProcessChatMessage_CancelBooking() {
-        BookingResponse cancelledRes = new BookingResponse();
-        cancelledRes.setId(1L);
-        cancelledRes.setServiceTitle("Plumbing Repair");
-        cancelledRes.setStatus(BookingStatus.CANCELLED.name());
+                ChatResponse response = chatService.processChatMessage(
+                                request("Hello"));
 
-        when(bookingService.cancelBooking(eq(1L), anyString()))
-                .thenReturn(cancelledRes);
+                assertEquals(
+                                "Hello! How can I help you?",
+                                response.getReply());
 
-        ChatRequest request = ChatRequest.builder()
-                .message("Cancel booking #1")
-                .conversationId("test-conv-123")
-                .userEmail("test@example.com")
-                .build();
+                assertEquals("CHAT", response.getActionPerformed());
 
-        ChatResponse response = chatService.processChatMessage(request);
+                assertEquals(
+                                "test-conversation",
+                                response.getConversationId());
 
-        assertNotNull(response);
-        assertEquals("BOOKING_CANCELLED", response.getActionPerformed());
-        assertTrue(response.getReply().contains("cancelled"));
-    }
+                verify(chatModel).call(any(Prompt.class));
 
-    @Test
-    void testProcessChatMessage_RecommendServices() {
-        ServiceListingResponse s1 = new ServiceListingResponse();
-        s1.setId(10L);
-        s1.setTitle("Expert Plumbing");
-        s1.setCategory("Plumber");
-        s1.setPrice(new java.math.BigDecimal("500.00"));
-        s1.setCity("Jamshedpur");
+                verify(bookingTools, never())
+                                .confirmBooking(anyString(), anyString());
+        }
 
-        when(bookingService.recommendServices(anyString(), anyString()))
-                .thenReturn(List.of(s1));
+        @Test
+        void shouldSaveUserAndAssistantMessages() {
 
-        ChatRequest request = ChatRequest.builder()
-                .message("Recommend services in Jamshedpur")
-                .conversationId("test-conv-123")
-                .userEmail("test@example.com")
-                .build();
+                mockAIResponse("Hello!");
 
-        ChatResponse response = chatService.processChatMessage(request);
+                chatService.processChatMessage(
+                                request("Hi"));
 
-        assertNotNull(response);
-        assertTrue(response.getReply().contains("Expert Plumbing") || response.getReply().contains("Top Services") || response.getReply().contains("LocalConnect AI"));
-    }
+                ArgumentCaptor<ChatMessage> captor = ArgumentCaptor.forClass(ChatMessage.class);
 
-    @Test
-    void testProcessChatMessage_ConversationIsolation() {
-        ChatMessage existingMsg = ChatMessage.builder()
-                .conversationId("conv-shared")
-                .userEmail("victim@example.com")
-                .sender("USER")
-                .content("Hello")
-                .createdAt(LocalDateTime.now().minusMinutes(5))
-                .build();
+                verify(chatMessageRepository, times(2))
+                                .save(captor.capture());
 
-        when(chatMessageRepository.findByConversationIdOrderByCreatedAtAsc("conv-shared"))
-                .thenReturn(List.of(existingMsg));
+                List<ChatMessage> saved = captor.getAllValues();
+                assertEquals("USER", saved.get(0).getSender());
+                assertEquals("Hi", saved.get(0).getContent());
 
-        ChatRequest request = ChatRequest.builder()
-                .message("Hi, I want to access victim's chat")
-                .conversationId("conv-shared")
-                .userEmail("attacker@example.com")
-                .build();
+                assertEquals("ASSISTANT", saved.get(1).getSender());
+                assertEquals("Hello!", saved.get(1).getContent());
 
-        assertThrows(ResponseStatusException.class, () -> chatService.processChatMessage(request));
-    }
+                assertEquals(
+                                "test@example.com",
+                                saved.get(0).getUserEmail());
+        }
+
+        @Test
+        void shouldAskForTimeWhenMissing() {
+
+                mockAIResponse(
+                                "What date and time would you like to book?");
+
+                ChatResponse response = chatService.processChatMessage(
+                                request("Book service #10 tomorrow"));
+
+                assertEquals("CHAT", response.getActionPerformed());
+
+                assertTrue(
+                                response.getReply().contains("What date and time"));
+
+                verify(bookingTools, never())
+                                .confirmBooking(anyString(), anyString());
+        }
+
+        @Test
+        void shouldNotCreateBookingWithoutConfirmation() {
+
+                mockAIResponse(
+                                "Please provide the booking details first.");
+
+                ChatResponse response = chatService.processChatMessage(
+                                request("Book service #10 tomorrow at 5 PM"));
+
+                assertEquals("CHAT", response.getActionPerformed());
+
+                verify(bookingTools, never())
+                                .confirmBooking(anyString(), anyString());
+        }
+
+        @Test
+        void shouldCreateBookingAfterExplicitConfirmation() {
+
+                BookingResponse booking = new BookingResponse();
+
+                booking.setId(1L);
+                booking.setServiceId(10L);
+                booking.setServiceTitle("Plumbing Repair");
+                booking.setBookingDate(
+                                LocalDateTime.now().plusDays(1));
+                booking.setStatus("PENDING");
+
+                when(
+                                bookingTools.confirmBooking(
+                                                "test@example.com",
+                                                "test-conversation"))
+                                .thenReturn(booking);
+
+                ChatResponse response = chatService.processChatMessage(
+                                request("confirm booking"));
+
+                assertEquals(
+                                "BOOKING_CREATED",
+                                response.getActionPerformed());
+
+                assertTrue(
+                                response.getReply().contains("Booking ID: #1"));
+
+                verify(bookingTools).confirmBooking(
+                                "test@example.com",
+                                "test-conversation");
+
+                verifyNoInteractions(chatModel);
+        }
+
+        @Test
+        void shouldHandleConfirmationWithoutPendingBooking() {
+
+                when(
+                                bookingTools.confirmBooking(
+                                                "test@example.com",
+                                                "test-conversation"))
+                                .thenThrow(
+                                                new ResponseStatusException(
+                                                                HttpStatus.BAD_REQUEST,
+                                                                "No pending booking."));
+
+                ChatResponse response = chatService.processChatMessage(
+                                request("confirm booking"));
+
+                assertEquals("CHAT", response.getActionPerformed());
+
+                assertTrue(
+                                response.getReply().contains("No pending booking"));
+
+                verifyNoInteractions(chatModel);
+        }
+
+        @Test
+        void shouldDiscardUnconfirmedBookingRequest() {
+
+                ChatResponse response = chatService.processChatMessage(
+                                request("cancel request"));
+
+                assertEquals("CHAT", response.getActionPerformed());
+
+                assertTrue(
+                                response.getReply().contains(
+                                                "Booking request discarded"));
+
+                verify(bookingTools).cancelRequest(
+                                "test@example.com",
+                                "test-conversation");
+
+                verify(bookingTools, never())
+                                .confirmBooking(anyString(), anyString());
+
+                verifyNoInteractions(chatModel);
+        }
+
+        @Test
+        void shouldRejectAnotherUsersConversation() {
+
+                ChatMessage existingMessage = ChatMessage.builder()
+                                .conversationId("test-conversation")
+                                .userEmail("victim@example.com")
+                                .sender("USER")
+                                .content("Private message")
+                                .createdAt(LocalDateTime.now())
+                                .build();
+
+                when(
+                                chatMessageRepository
+                                                .findByConversationIdOrderByCreatedAtAsc(
+                                                                "test-conversation"))
+                                .thenReturn(List.of(existingMessage));
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> chatService.processChatMessage(
+                                                request("Hello")));
+
+                assertEquals(
+                                HttpStatus.FORBIDDEN,
+                                exception.getStatusCode());
+
+                verify(chatMessageRepository, never())
+                                .save(any(ChatMessage.class));
+
+                verifyNoInteractions(chatModel);
+        }
+
+        @Test
+        void shouldRejectMissingAuthenticatedEmail() {
+
+                ChatRequest invalidRequest = ChatRequest.builder()
+                                .message("Hello")
+                                .conversationId("test-conversation")
+                                .build();
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> chatService.processChatMessage(
+                                                invalidRequest));
+
+                assertEquals(
+                                HttpStatus.UNAUTHORIZED,
+                                exception.getStatusCode());
+
+                verifyNoInteractions(chatModel, bookingTools);
+        }
+
+        @Test
+        void shouldRejectEmptyMessage() {
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> chatService.processChatMessage(
+                                                request("   ")));
+
+                assertEquals(
+                                HttpStatus.BAD_REQUEST,
+                                exception.getStatusCode());
+
+                verifyNoInteractions(chatModel);
+        }
+
+        @Test
+        void shouldReturn503WhenAIResponseIsEmpty() {
+
+                mockAIResponse("");
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> chatService.processChatMessage(
+                                                request("Hello")));
+
+                assertEquals(
+                                HttpStatus.SERVICE_UNAVAILABLE,
+                                exception.getStatusCode());
+
+                verify(bookingTools, never())
+                                .confirmBooking(anyString(), anyString());
+        }
+
+        @Test
+        void shouldReturn503WhenAIModelFails() {
+
+                when(chatModel.call(any(Prompt.class)))
+                                .thenThrow(
+                                                new RuntimeException("AI service unavailable"));
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> chatService.processChatMessage(
+                                                request("Show plumbers")));
+
+                assertEquals(
+                                HttpStatus.SERVICE_UNAVAILABLE,
+                                exception.getStatusCode());
+
+                verify(bookingTools, never())
+                                .confirmBooking(anyString(), anyString());
+        }
 }
-
