@@ -4,7 +4,7 @@ async function register() {
     const data = {
         fullName: document.getElementById("name").value.trim(),
         email: document.getElementById("email").value.trim(),
-        password: document.getElementById("password").value.trim(),
+        password: document.getElementById("password").value,
         phone: document.getElementById("phone").value.trim(),
         role: document.getElementById("role").value
     };
@@ -30,7 +30,7 @@ async function login() {
 
     const data = {
         email: document.getElementById("email").value.trim(),
-        password: document.getElementById("password").value.trim()
+        password: document.getElementById("password").value
     };
 
     try {
