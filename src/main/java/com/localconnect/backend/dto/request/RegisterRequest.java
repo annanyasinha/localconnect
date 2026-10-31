@@ -3,7 +3,10 @@ package com.localconnect.backend.dto.request;
 import com.localconnect.backend.enums.RoleName;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+
 import jakarta.validation.constraints.Size;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -22,6 +25,7 @@ public class RegisterRequest {
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
+    @Pattern(regexp = "^$|^[0-9]{10}$", message = "Phone number must contain 10 digits")
     private String phone;
 
     private RoleName role;
