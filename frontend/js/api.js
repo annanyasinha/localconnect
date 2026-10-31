@@ -1,23 +1,23 @@
 //const API_BASE =
-    //window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-     //   ? "http://localhost:8088/api"
-      //  : "http://localhost:8088/api";
+//window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+//   ? "http://localhost:8088/api"
+//  : "http://localhost:8088/api";
 
 
 // Automatically choose localhost:8088 when running locally or via file:// protocol
 const API_BASE =
     window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1" ||
-    window.location.protocol === "file:" ||
-    !window.location.hostname
-        ? "http://localhost:8088/api" 
+        window.location.hostname === "127.0.0.1" ||
+        window.location.protocol === "file:" ||
+        !window.location.hostname
+        ? "http://localhost:8088/api"
         : "https://localconnect-v4rp.onrender.com/api";
 
 function getToken() {
     return localStorage.getItem("token");
 }
 
-    // ... rest of your apiFetch function remains exactly the same
+// ... rest of your apiFetch function remains exactly the same
 async function apiFetch(url, options = {}) {
     const headers = {
         ...(options.headers || {})
@@ -53,8 +53,15 @@ async function apiFetch(url, options = {}) {
     }
 
     if (!response.ok) {
-        throw new Error(data.message || "Request failed");
-    }
+        let message = data.message;
 
+        if (!message && data && typeof data === "object") {
+            message = Object.values(data)
+                .filter(value => typeof value === "string")
+                .join("\n");
+        }
+
+        throw new Error(message || "Request failed");
+    }
     return data;
 }
